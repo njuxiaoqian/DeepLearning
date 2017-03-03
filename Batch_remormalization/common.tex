@@ -30,20 +30,28 @@
 
 \begin{abstract}
 
-批规范化可以十分有效地加速和提升深度模型的训练。但是，当训练的 minibatch 较小或不是由独立的样本组成时，它的有效性会降低。我们假设这是由 minibatch 中所有样本上的模型层输入的依赖性和训练与推理之间产生的不同激活所造成的。我们提出了一种简单却有效的扩展——批再规范化，以确保训练和推理模型可以基于单个样本而非整个 minibatch 而生成同样的输出。当用小或 non-i.i.d.（非独立同分布）minibatch 训练时，用批再规范化训练的模型的表现显著优于批规范化训练的模型。与此同时，批再规范化还保留了批规范化的优点，例如对初始化不敏感和训练效率。
+批规范化可以十分有效地加速和提升深度模型的训练。但是，当训练的 minibatch 较小或不是由独立的样本组成时，它的有效性会降低。我们假设这是由 minibatch 中所有样本上的模型层输入的依赖性和训练与推理之间产生的不同激活所造成的。我们提出了一种简单却有效的扩展—— 批再规范化，以确保训练和推理模型可以基于单个样本而非整个 minibatch 而生成同样的输出。当用小或 non-i.i.d.（非独立同分布）minibatch 训练时，用批再规范化训练的模型的表现显著优于批规范化训练的模型。与此同时，批再规范化还保留了批规范化的优点，例如对初始化不敏感和训练效率。
 Batch Normalization is quite effective at accelerating and improving the training of deep models. However, its effectiveness diminishes when the training minibatches are small, or do not consist of independent samples. We hypothesize that this is due to the dependence of model layer inputs on all the examples in the minibatch, and different activations being produced between training and inference. We propose Batch Renormalization, a simple and effective extension to ensure that the training and inference models generate the same outputs that depend on individual examples rather than the entire minibatch. Models trained with Batch Renormalization perform substantially better than batchnorm when training with small  or non-i.i.d. minibatches. At the same time, Batch Renormalization retains the benefits of batchnorm such as insensitivity to initialization and training efficiency.
 
 \end{abstract}
 
 \section{Introduction}
+批规范化近年来已经成为训练深度网络的标准工具包的一部分。通过规范化激活，批规范化帮助固定了作为模型训练的内部激活分布，使用了更高的学习率，减少了初始化敏感度。这些影响帮助加速了训练速度，有时有戏剧性的效果。批规范化成功应用于先进的架构比如残差网络。
 
 Batch Normalization (``batchnorm" \cite{batchnorm}) has recently become a part of the standard toolkit for training deep networks. By normalizing activations, batch normalization helps stabilize the distributions of internal activations as the model trains. Batch normalization also makes it possible to use significantly higher learning rates, and reduces the sensitivity to initialization. These effects help accelerate the training, sometimes dramatically so. Batchnorm has been successfully used to enable  state-of-the-art architectures such as residual networks \cite{resnet}.
 
+批规范化对minibatch样本做随机梯度训练，并使用这些minibatch 样本的均值和方差去规范化激活。具体来说，考虑在深度网络中的一个特定节点，为每个输入样本产生一个标量值。给定$m$个样本的一个minibatch为$\setB$ ，考虑这个节点的值$x_1\ldots x_m$。 然后批规范化值如下所示：
+$$
+\xhat_i \leftarrow \frac{x_i-\mu_\setB}{\sigma_\setB}
+$$
 Batchnorm works on minibatches in stochastic gradient training, and uses the mean and variance of the minibatch  to normalize the activations. Specifically, consider a particular node in the deep network, producing a scalar value for each input example. Given a minibatch $\setB$ of $m$ examples, consider the values of this node, $x_1\ldots x_m$. Then batchnorm takes the form:
 $$
 \xhat_i \leftarrow \frac{x_i-\mu_\setB}{\sigma_\setB}
 $$
+
+这里的$\mu_\setB$ 是$x_1\ldots x_m$这m个样本的方差，$\sigma_\setB^2$ 是样本的方差(事实上，为了数值的稳定性增加了一个很小的值$\epsilon$)。可以清楚的看到，对于输入一个样本的规范化激活将取决于minibatch中的其他样本，这在推断阶段是不可取的，因此可以用对整个样本计算均值和方差来代替只使用minibatch。在实践中，模型经常会对minibatch均值和方差维持一个移动平均，在推断阶段使用这些移动平均来代替minibatch统计。
 where $\mu_\setB$ is the sample mean of $x_1\ldots x_m$, and $\sigma_\setB^2$ is the sample variance (in practice, a small $\epsilon$ is added to it for numerical stability). It is clear that the normalized activations corresponding to an input example will depend on the other examples in the  minibatch. This is undesirable during inference, and therefore the mean and variance computed over all training data can be used instead. In practice, the model usually maintains moving averages of minibatch means and variances, and during inference uses those in place of the minibatch statistics.
+
 
 While it appears to make sense to replace the minibatch statistics with whole-data ones during inference, this changes the activations in the network. In particular, this means that the upper layers (whose inputs are normalized using the minibatch) are trained on representations different from those computed in inference (when the inputs are normalized using the population statistics). When the minibatch size is large and its elements are i.i.d. samples from the training distribution, this difference is small, and can in fact aid generalization. However,  minibatch-wise normalization may have significant drawbacks:
 
